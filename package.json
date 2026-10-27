@@ -1,0 +1,8 @@
+{
+  "name": "douyin-mcp",
+  "version": "1.0.0",
+  "main": "server.js",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.1"
+  }
+}
