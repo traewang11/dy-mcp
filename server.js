@@ -6,13 +6,10 @@ import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprot
 const app = express();
 const port = process.env.PORT || 8000;
 
-// 创建 MCP Server 实例
-const server = new Server(
-  { name: "douyin-mock", version: "1.0.0" },
-  { capabilities: { tools: {} } }
-);
+// 创建服务
+const server = new Server({ name: "douyin-mock", version: "1.0.0" }, { capabilities: { tools: {} } });
 
-// 注册工具列表
+// 注册工具
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: [{
     name: "get_current_video",
@@ -29,28 +26,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   throw new Error(`未知工具: ${request.params.name}`);
 });
 
-// 核心：SSE 连接端点
+let transport;
+
+// 核心：建立 SSE 长连接
 app.get('/sse', async (req, res) => {
-  console.log('客户端请求建立 SSE 连接...');
-  // 创建 SSE 传输层，并指定后续接收消息的路径为 /messages
-  const transport = new SSEServerTransport('/messages', res);
+  console.log('客户端已建立 SSE 连接');
+  transport = new SSEServerTransport('/messages', res);
   await server.connect(transport);
-  console.log('SSE 连接已建立，会话 ID:', transport.sessionId);
 });
 
-// 核心：接收客户端 POST 消息的端点
+// 核心：接收客户端发来的 POST 消息
 app.post('/messages', async (req, res) => {
-  console.log('收到客户端 POST 消息...');
-  // 注意：这里需要将具体的 transport 实例传入，简化场景下可能依赖全局或重新获取
-  // 对于 Render 这种无状态部署，SSE 模式可能会因实例重启而断开，需要客户端重连。
-  // 更稳健的做法是使用 Session 管理，但为了快速跑通，我们先保持简单。
+  if (transport) {
+    await transport.handlePostMessage(req, res);
+  } else {
+    res.status(400).send('SSE 连接尚未建立');
+  }
 });
 
-// 健康检查端点，Render 会定期检查
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
-
+// 启动服务
 app.listen(port, '0.0.0.0', () => {
   console.log(`MCP server listening on port ${port}`);
 });
